@@ -1,0 +1,17 @@
+{
+  "name": "속마음 수첩",
+  "short_name": "속마음 수첩",
+  "description": "솔직한 마음을 쓰고, 손가락으로 까맣게 지우고, 그 위에 좋은 말을 쓰는 일기장",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#e8e4dc",
+  "theme_color": "#e8e4dc",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

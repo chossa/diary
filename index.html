@@ -1,0 +1,798 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!--PWA-START-->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="속마음 수첩">
+<meta name="theme-color" content="#e8e4dc">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<!--PWA-END-->
+<title>속마음 수첩</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Nanum+Pen+Script&display=swap">
+<style>
+/* Layout: one spiral notepad on a desk; every writing block sits on the same 36px ruled grid */
+:root {
+  --desk: #e8e4dc;
+  --paper: #fcfaf3;
+  --paper-edge: #efebe1;
+  --rule: #8fb2e3;
+  --pencil: #2c2f38;      /* 속마음을 쓰는 펜 */
+  --blue-pen: #1f4c9e;    /* 좋은 말을 쓰는 펜 */
+  --marker: #151515;
+  --tape: #fffefa;
+  --muted: #8a8578;
+  --cover: #2f8fc2;
+  --ring: #1d1d1f;
+  --lh: 36px;
+  --hand: "Nanum Pen Script", "Gaegu", "Apple SD Gothic Neo", cursive;
+  --ui: "Gaegu", "Nanum Pen Script", "Apple SD Gothic Neo", sans-serif;
+  color-scheme: light;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  background: var(--desk);
+  color: var(--pencil);
+  font-family: var(--ui);
+  min-height: 100vh;
+  -webkit-text-size-adjust: 100%;
+}
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; }
+button:focus-visible, input:focus-visible { outline: 2px dashed var(--blue-pen); outline-offset: 3px; }
+
+.desk {
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: max(14px, env(safe-area-inset-top, 0px)) max(40px, calc(env(safe-area-inset-bottom, 0px) + 24px));
+}
+.pad { position: relative; max-width: 520px; margin: 0 auto; padding-top: 20px; }
+
+/* 스프링 */
+.spiral { position: absolute; left: 6px; right: 6px; top: 0; height: 48px; z-index: 3; pointer-events: none; }
+.spiral svg { width: 100%; height: 100%; display: block; }
+
+/* 종이 + 밑에 깔린 종이들 + 파란 표지 */
+.paper {
+  position: relative; z-index: 2;
+  background-color: var(--paper);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .4 0 0 0 0 .3 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  border-radius: 3px 3px 14px 14px;
+  box-shadow: 0 1px 0 var(--paper-edge), 0 2px 6px rgba(60, 50, 30, .12);
+  padding: 46px 18px 26px;
+  min-height: 70vh;
+}
+.stack { position: relative; height: 0; z-index: 1; }
+.stack::before, .stack::after {
+  content: ""; position: absolute; left: 4px; right: 4px; height: 14px; border-radius: 0 0 14px 14px;
+}
+.stack::before { top: -10px; background: #f4f1e8; box-shadow: 0 1px 3px rgba(60,50,30,.15); left: 3px; right: 2px; }
+.stack::after { top: -4px; background: var(--cover); z-index: -1; height: 14px; left: 6px; right: 0; box-shadow: 0 2px 4px rgba(20,60,90,.25); }
+
+/* 머리말: 날짜 */
+.top { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+.nav { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; color: var(--muted); }
+.nav svg { width: 22px; height: 22px; }
+.nav:disabled { opacity: .25; cursor: default; }
+.nav:not(:disabled):active { background: rgba(0,0,0,.05); }
+.date { flex: 1; text-align: center; line-height: 1.05; }
+.date b { display: block; font-family: var(--hand); font-weight: 400; font-size: 34px; color: var(--pencil); }
+.date span { font-size: 15px; color: var(--muted); }
+.menu-btn { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; color: var(--muted); }
+.menu-btn svg { width: 22px; height: 22px; }
+
+.sec { margin-top: 22px; }
+.sec:first-of-type { margin-top: 6px; }
+.label {
+  margin: 0 0 4px; font-size: 19px; font-weight: 700; color: var(--pencil);
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+}
+.label small { font-weight: 400; font-size: 15px; color: var(--muted); }
+.label .mark { background: linear-gradient(transparent 55%, rgba(255, 214, 92, .55) 55% 90%, transparent 90%); padding: 0 2px; }
+
+/* 줄 노트 */
+.lined {
+  background-image: linear-gradient(to bottom, transparent calc(var(--lh) - 1.5px), var(--rule) calc(var(--lh) - 1.5px), var(--rule) var(--lh), transparent var(--lh));
+  background-size: 100% var(--lh);
+}
+.writing {
+  display: block; width: 100%; margin: 0; border: 0; border-radius: 0; outline: none;
+  padding: 0 2px; resize: none; overflow: hidden;
+  font-family: var(--hand); font-size: 27px; line-height: var(--lh);
+  white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal;
+  -webkit-appearance: none; appearance: none;
+  color: var(--pencil);
+  background-color: transparent;
+}
+.writing::placeholder { color: #aaa597; }
+.diary { position: relative; overflow: hidden; }
+#negShow { min-height: calc(var(--lh) * 6); }
+#negShow.buried { filter: blur(2.6px); opacity: .5; transition: filter .5s, opacity .5s; }
+.diary.revealed #negShow.buried { filter: none; opacity: 1; }
+#ink { position: absolute; left: 0; top: 0; pointer-events: none; touch-action: none; transition: opacity .5s; }
+.diary.erasing #ink { pointer-events: auto; cursor: crosshair; }
+.diary.revealed #ink { opacity: .1; }
+
+.pos-layer { position: absolute; left: 0; right: 0; top: 0; transition: opacity .4s; }
+.diary.revealed .pos-layer { opacity: 0; pointer-events: none; }
+#tapeMirror { position: absolute; inset: 0 0 auto 0; color: transparent; pointer-events: none; user-select: none; }
+#tapeMirror .tape {
+  background: var(--tape);
+  padding-block: 4px 3px;
+  box-shadow: -5px 0 0 var(--tape), 5px 0 0 var(--tape), 0 2px 3px rgba(0,0,0,.18);
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+}
+#posInput { position: relative; color: var(--blue-pen); }
+#posInput::placeholder { color: #7f96bd; }
+
+.hint { margin-top: 10px; font-size: 16px; color: var(--muted); min-height: 1.2em; }
+.hint strong { color: var(--pencil); font-variant-numeric: tabular-nums; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; align-items: center; }
+.btn {
+  font-size: 18px; font-weight: 700; padding: 9px 18px 8px;
+  border-radius: 255px 18px 225px 18px / 18px 225px 18px 255px;
+  border: 2px solid var(--pencil); color: var(--pencil); background: transparent;
+  transition: transform .12s;
+}
+.btn:active { transform: scale(.97); }
+.btn.ink { background: var(--pencil); color: var(--paper); }
+.btn.blue { background: var(--blue-pen); border-color: var(--blue-pen); color: #fff; }
+.btn:disabled { opacity: .35; cursor: default; }
+.btn .ico { width: 16px; height: 16px; vertical-align: -2px; margin-right: 4px; }
+.link { font-size: 16px; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; padding: 6px 2px; }
+
+/* 할 일 */
+.todo { list-style: none; margin: 0; padding: 0; }
+.todo li { display: flex; align-items: center; gap: 10px; min-height: var(--lh); line-height: var(--lh); }
+.todo .txt { flex: 1; min-width: 0; font-family: var(--hand); font-size: 25px; overflow-wrap: anywhere; line-height: 1.25; padding-block: 5px 2px; }
+.box {
+  flex: none; width: 22px; height: 22px; display: grid; place-items: center;
+  border: 2px solid var(--pencil); border-radius: 3px 6px 4px 7px; transform: rotate(-3deg);
+}
+.box svg { width: 22px; height: 22px; overflow: visible; }
+.box path { stroke: var(--blue-pen); stroke-width: 3.2; fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 40; stroke-dashoffset: 40; transition: stroke-dashoffset .3s ease-out; }
+.done .box path { stroke-dashoffset: 0; }
+.done .txt { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--blue-pen); text-decoration-thickness: 2px; }
+.dash { flex: none; width: 22px; text-align: center; font-family: var(--hand); font-size: 26px; color: var(--muted); }
+.del { flex: none; width: 34px; height: 34px; color: #b3ad9f; display: grid; place-items: center; }
+.del svg { width: 16px; height: 16px; }
+.add-row { display: flex; align-items: center; gap: 10px; }
+.add-row input {
+  flex: 1; min-width: 0; height: var(--lh); border: 0; outline: none; background: transparent; padding: 0;
+  font-family: var(--hand); font-size: 25px; color: var(--pencil);
+}
+.add-row input::placeholder { color: #aaa597; }
+.empty { font-size: 16px; color: var(--muted); line-height: var(--lh); }
+.filler { height: calc(var(--lh) * 3); margin-top: 18px; }
+
+/* 시트 / 모달 */
+.scrim {
+  position: fixed; inset: 0; z-index: 20; background: rgba(30, 26, 18, .35);
+  display: flex; align-items: flex-end; justify-content: center;
+  padding: 0 max(12px, env(safe-area-inset-right, 0px)) max(14px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
+}
+.sheet {
+  width: 100%; max-width: 440px; background: var(--paper); border-radius: 18px;
+  padding: 22px 20px 18px; box-shadow: 0 10px 30px rgba(0,0,0,.25);
+  animation: up .22s ease-out;
+}
+@keyframes up { from { transform: translateY(24px); opacity: 0; } }
+.sheet h3 { margin: 0 0 6px; font-size: 22px; }
+.sheet p { margin: 0 0 14px; font-size: 17px; color: #5f5a4f; line-height: 1.4; }
+.sheet .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.menu-list { display: grid; gap: 2px; margin-top: 4px; }
+.menu-list button { text-align: left; font-size: 19px; padding: 12px 6px; border-bottom: 1px dashed #d8d2c4; }
+.menu-list button:last-child { border-bottom: 0; }
+.menu-list small { display: block; font-size: 14px; color: var(--muted); }
+
+.pin-dots { display: flex; justify-content: center; gap: 16px; margin: 8px 0 18px; }
+.pin-dots i { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--pencil); }
+.pin-dots i.on { background: var(--pencil); }
+.pin-dots.shake { animation: shake .35s; }
+@keyframes shake { 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+.keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.keys button { height: 54px; font-size: 26px; font-weight: 700; border-radius: 14px; background: #f1ede3; }
+.keys button:active { background: #e5dfd1; }
+.keys .blank { background: transparent; }
+.pin-msg { text-align: center; min-height: 1.3em; font-size: 16px; color: #b0453a; margin: -8px 0 10px; }
+
+.toast {
+  position: fixed; left: 50%; top: max(16px, calc(env(safe-area-inset-top, 0px) + 10px)); transform: translateX(-50%);
+  background: var(--pencil); color: var(--paper); padding: 10px 18px; border-radius: 999px; font-size: 17px; z-index: 30;
+  max-width: calc(100% - 32px); text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="desk">
+  <div class="pad">
+    <div class="spiral" aria-hidden="true">
+      <svg>
+        <defs>
+          <pattern id="coil" width="27" height="48" patternUnits="userSpaceOnUse" x="4">
+            <circle cx="13.5" cy="35" r="5.2" fill="#d6d1c6"/>
+            <circle cx="13.5" cy="35.6" r="4" fill="#bdb7aa"/>
+            <path d="M10.5 37 C 6 24, 7 7, 14.5 4.5 C 21 2.6, 22.5 12, 18.5 31" stroke="#1d1d1f" stroke-width="3.4" fill="none" stroke-linecap="round"/>
+            <path d="M11.5 31 C 9 21, 10 9, 14.5 7" stroke="#6b6b70" stroke-width="1.1" fill="none" stroke-linecap="round"/>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#coil)"/>
+      </svg>
+    </div>
+
+    <main class="paper" id="paper">
+      <header class="top">
+        <button class="nav" id="prev" aria-label="전날">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 5 L8 12 L15 19"/></svg>
+        </button>
+        <button class="date" id="dateBtn" aria-label="오늘로 가기">
+          <b id="dateMain"></b><span id="dateSub"></span>
+        </button>
+        <button class="nav" id="next" aria-label="다음 날">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 5 L16 12 L9 19"/></svg>
+        </button>
+        <button class="menu-btn" id="menuBtn" aria-label="메뉴">
+          <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+        </button>
+      </header>
+
+      <section class="sec">
+        <h2 class="label"><span class="mark" id="diaryLabel">오늘의 속마음</span><small id="diarySub"></small></h2>
+        <div class="diary" id="diary">
+          <textarea id="negInput" class="writing lined" rows="6" aria-label="속마음 쓰기"
+            placeholder="오늘 힘들었던 일, 화났던 일, 속상했던 일. 아무도 안 봐. 있는 그대로 써도 돼."></textarea>
+          <div id="negShow" class="writing lined" hidden></div>
+          <canvas id="ink" aria-label="손가락으로 칠해서 지우는 곳"></canvas>
+          <div class="pos-layer" id="posLayer" hidden>
+            <div id="tapeMirror" class="writing" aria-hidden="true"></div>
+            <textarea id="posInput" class="writing" rows="1" aria-label="좋은 말 쓰기"
+              placeholder="지운 자리 위에, 나한테 해주고 싶은 좋은 말을 써봐"></textarea>
+          </div>
+        </div>
+        <div class="hint" id="hint"></div>
+        <div class="actions" id="actions"></div>
+      </section>
+
+      <section class="sec" id="todaySec" hidden>
+        <h2 class="label"><span id="todayTitle">오늘 할 일</span><small id="todaySub">어제의 내가 적어둔 것</small></h2>
+        <ul class="todo lined" id="todayList"></ul>
+      </section>
+
+      <section class="sec">
+        <h2 class="label"><span id="tomTitle">내일 할 일</span></h2>
+        <ul class="todo lined" id="tomList"></ul>
+        <form class="add-row lined" id="addForm" autocomplete="off">
+          <span class="dash">+</span>
+          <input id="addInput" type="text" enterkeyhint="done" placeholder="내일 할 일 적기" aria-label="내일 할 일 적기">
+        </form>
+      </section>
+      <div class="filler lined" aria-hidden="true"></div>
+    </main>
+    <div class="stack" aria-hidden="true"></div>
+  </div>
+</div>
+
+<input type="file" id="importFile" accept="application/json,.json" hidden>
+<div id="modalRoot"></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+  "use strict";
+  const KEY = "sokmaeum-sucheop-v1";
+  const $ = (id) => document.getElementById(id);
+  const DAYS = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
+
+  // ---------- 저장 ----------
+  let db = { days: {}, pin: null, pinAsked: false };
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) db = Object.assign(db, JSON.parse(raw));
+  } catch (e) { /* 저장소를 못 쓰는 환경 */ }
+  let saveTimer = null;
+  function save(now) {
+    clearTimeout(saveTimer);
+    const run = () => {
+      try { localStorage.setItem(KEY, JSON.stringify(db)); }
+      catch (e) { toast("저장하지 못했어요. 저장 공간을 확인해 주세요."); }
+    };
+    now ? run() : (saveTimer = setTimeout(run, 300));
+  }
+  window.addEventListener("pagehide", () => save(true));
+  document.addEventListener("visibilitychange", () => { if (document.hidden) save(true); });
+
+  // ---------- 날짜 ----------
+  const keyOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const fromKey = (k) => { const [y, m, d] = k.split("-").map(Number); return new Date(y, m - 1, d); };
+  const shift = (k, n) => { const d = fromKey(k); d.setDate(d.getDate() + n); return keyOf(d); };
+  const todayKey = () => keyOf(new Date());
+  let cur = todayKey();
+
+  function day(k) {
+    if (!db.days[k]) db.days[k] = { neg: "", strokes: [], pos: "", stage: "write", todos: [] };
+    return db.days[k];
+  }
+  const peek = (k) => db.days[k];
+
+  // ---------- 요소 ----------
+  const diary = $("diary"), negInput = $("negInput"), negShow = $("negShow"), ink = $("ink");
+  const posLayer = $("posLayer"), posInput = $("posInput"), tapeMirror = $("tapeMirror");
+  const hint = $("hint"), actions = $("actions");
+  const ctx = ink.getContext("2d");
+  let revealed = false;
+  let current = null; // 그리고 있는 선
+
+  function lh() { return parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--lh")) || 36; }
+
+  function grow(el, minRows) {
+    const L = lh();
+    el.style.height = "auto";
+    const h = Math.max(minRows * L, Math.ceil((el.scrollHeight - 1) / L) * L);
+    el.style.height = h + "px";
+  }
+
+  // ---------- 그리기 ----------
+  function rand(seed) { // 선마다 같은 질감이 나오도록
+    let s = seed >>> 0 || 1;
+    return () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return ((s >>> 0) % 10000) / 10000; };
+  }
+  function drawStroke(st, w) {
+    const pts = st.p;
+    if (!pts.length) return;
+    const W = lh() * 0.8;
+    const r = rand(st.s);
+    const passes = [
+      { off: 0, width: W, alpha: 1 },
+      { off: W * 0.3, width: W * 0.45, alpha: 0.85 },
+      { off: -W * 0.3, width: W * 0.4, alpha: 0.85 },
+    ];
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
+    for (const ps of passes) {
+      ctx.strokeStyle = `rgba(21,21,21,${ps.alpha})`;
+      ctx.lineWidth = ps.width * (0.92 + r() * 0.16);
+      ctx.beginPath();
+      const j = (r() - 0.5) * 3;
+      for (let i = 0; i < pts.length; i++) {
+        const x = pts[i][0] * w, y = pts[i][1] * w + ps.off + j;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      if (pts.length === 1) ctx.lineTo(pts[0][0] * w + 0.1, pts[0][1] * w + ps.off);
+      ctx.stroke();
+    }
+  }
+  function redraw() {
+    const d = peek(cur);
+    const w = ink.clientWidth;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, ink.width, ink.height);
+    const dpr = ink.width / Math.max(1, w);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (!d) return;
+    for (const st of d.strokes) drawStroke(st, w);
+    if (current) drawStroke(current, w);
+  }
+  function layout() {
+    const d = peek(cur) || { stage: "write" };
+    const L = lh();
+    if (!negInput.hidden) grow(negInput, 6);
+    if (!posLayer.hidden) grow(posInput, 2);
+    const negH = negInput.hidden ? negShow.offsetHeight : negInput.offsetHeight;
+    const posH = posLayer.hidden ? 0 : posInput.offsetHeight;
+    const h = Math.max(negH, posH);
+    diary.style.minHeight = h + "px";
+    const w = diary.clientWidth;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    const ch = Math.max(h, diary.offsetHeight);
+    if (ink.width !== Math.round(w * dpr) || ink.height !== Math.round(ch * dpr)) {
+      ink.width = Math.round(w * dpr); ink.height = Math.round(ch * dpr);
+    }
+    ink.style.width = w + "px"; ink.style.height = ch + "px";
+    redraw();
+  }
+
+  // 손가락 칠하기
+  function pt(e) {
+    const r = ink.getBoundingClientRect();
+    const w = ink.clientWidth;
+    return [(e.clientX - r.left) / w, (e.clientY - r.top) / w];
+  }
+  ink.addEventListener("pointerdown", (e) => {
+    const d = peek(cur);
+    if (!d || d.stage !== "erase") return;
+    e.preventDefault();
+    ink.setPointerCapture(e.pointerId);
+    current = { s: (Math.random() * 1e9) | 0, p: [pt(e)] };
+    redraw();
+  });
+  ink.addEventListener("pointermove", (e) => {
+    if (!current) return;
+    e.preventDefault();
+    const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    for (const ev of evs) {
+      const p = pt(ev); const last = current.p[current.p.length - 1];
+      if (Math.hypot(p[0] - last[0], p[1] - last[1]) * ink.clientWidth > 2) current.p.push(p.map((v) => Math.round(v * 10000) / 10000));
+    }
+    redraw();
+  });
+  const endStroke = () => {
+    if (!current) return;
+    day(cur).strokes.push(current);
+    current = null;
+    save();
+    redraw();
+    updateCoverage();
+  };
+  ink.addEventListener("pointerup", endStroke);
+  ink.addEventListener("pointercancel", endStroke);
+  ink.addEventListener("touchmove", (e) => { if (diary.classList.contains("erasing")) e.preventDefault(); }, { passive: false });
+
+  // 글자가 얼마나 덮였는지
+  function coverage() {
+    const node = negShow;
+    if (!node.textContent.trim()) return 1;
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    const rects = Array.from(range.getClientRects());
+    const base = ink.getBoundingClientRect();
+    const dpr = ink.width / Math.max(1, ink.clientWidth);
+    let img;
+    try { img = ctx.getImageData(0, 0, ink.width, ink.height).data; } catch (e) { return 1; }
+    let hit = 0, total = 0;
+    const step = 4;
+    for (const rc of rects) {
+      if (rc.width < 2) continue;
+      const top = rc.top + rc.height * 0.2, bottom = rc.bottom - rc.height * 0.15;
+      for (let y = top; y < bottom; y += step) {
+        for (let x = rc.left; x < rc.right; x += step) {
+          const px = Math.floor((x - base.left) * dpr), py = Math.floor((y - base.top) * dpr);
+          if (px < 0 || py < 0 || px >= ink.width || py >= ink.height) continue;
+          total++;
+          if (img[(py * ink.width + px) * 4 + 3] > 150) hit++;
+        }
+      }
+    }
+    return total ? hit / total : 1;
+  }
+  const NEED = 0.9;
+  function updateCoverage() {
+    const d = peek(cur);
+    if (!d || d.stage !== "erase") return;
+    const c = coverage();
+    const pct = Math.min(100, Math.round(c * 100));
+    hint.innerHTML = `손가락으로 박박 칠해서 지워봐 · 지운 정도 <strong>${pct}%</strong>`;
+    const btn = $("eraseDone");
+    if (btn) btn.disabled = c < NEED;
+  }
+
+  // ---------- 좋은 말 (수정테이프) ----------
+  const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  function mirror() {
+    const v = posInput.value || posInput.placeholder;
+    tapeMirror.innerHTML = `<span class="tape">${esc(v)}</span>`;
+  }
+
+  // ---------- 화면 그리기 ----------
+  function render() {
+    const d = peek(cur) || { neg: "", strokes: [], pos: "", stage: "write", todos: [] };
+    const isToday = cur === todayKey();
+    const dt = fromKey(cur);
+    $("dateMain").textContent = `${dt.getMonth() + 1}월 ${dt.getDate()}일`;
+    $("dateSub").textContent = (dt.getFullYear() !== new Date().getFullYear() ? dt.getFullYear() + "년 " : "") + DAYS[dt.getDay()] + (isToday ? " · 오늘" : "");
+    $("next").disabled = cur >= todayKey();
+    $("diaryLabel").textContent = isToday ? "오늘의 속마음" : "그날의 속마음";
+
+    revealed = false;
+    diary.classList.remove("revealed");
+    const st = d.stage;
+    diary.classList.toggle("erasing", st === "erase");
+    negInput.hidden = st !== "write";
+    negShow.hidden = st === "write";
+    negShow.classList.toggle("buried", st === "positive" || st === "done");
+    posLayer.hidden = !(st === "positive" || st === "done");
+    if (st === "write") negInput.value = d.neg;
+    else negShow.textContent = d.neg;
+    posInput.value = d.pos || "";
+    mirror();
+
+    $("diarySub").textContent = { write: "", erase: "", positive: "", done: "검게 지우고 좋은 말로 덮었어" }[st];
+    actions.innerHTML = "";
+    const add = (html, cls, fn, id) => {
+      const b = document.createElement("button");
+      b.className = cls; b.innerHTML = html; b.onclick = fn; if (id) b.id = id;
+      actions.appendChild(b); return b;
+    };
+
+    if (st === "write") {
+      hint.textContent = d.neg ? "다 썼으면 버튼을 눌러. 그다음엔 손가락으로 까맣게 지울 거야." : "아무도 안 봐. 마음껏 써도 돼.";
+      add("다 털어놨어", "btn ink", () => {
+        const v = negInput.value.trim();
+        if (!v) { toast("먼저 속마음을 조금이라도 적어줘"); negInput.focus(); return; }
+        const dd = day(cur); dd.neg = negInput.value.replace(/\s+$/, ""); dd.stage = "erase"; dd.strokes = [];
+        save(true); negInput.blur(); render();
+      }, "toErase");
+    } else if (st === "erase") {
+      add("다 지웠어", "btn ink", () => {
+        const dd = day(cur); dd.stage = "positive"; save(true); render();
+        setTimeout(() => posInput.focus(), 350);
+      }, "eraseDone").disabled = true;
+      add("한 번 되돌리기", "btn", () => { const dd = day(cur); dd.strokes.pop(); save(); redraw(); updateCoverage(); });
+      add("글 고치기", "link", () => { const dd = day(cur); dd.stage = "write"; dd.strokes = []; save(true); render(); });
+    } else if (st === "positive") {
+      hint.textContent = "검게 지운 자리 위에, 나한테 해주고 싶은 말을 써봐.";
+      add("오늘 마무리", "btn blue", () => {
+        const dd = day(cur); dd.pos = posInput.value.replace(/\s+$/, ""); dd.stage = "done"; save(true); posInput.blur(); render();
+        toast(isToday ? "수고했어, 오늘도." : "저장했어");
+      });
+    } else {
+      hint.textContent = "";
+      add(lockIco() + "그날의 속마음 보기", "btn", () => askReveal(), "revealBtn");
+    }
+
+    renderTodos();
+    requestAnimationFrame(() => { layout(); updateCoverage(); });
+  }
+  const lockIco = () => '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>';
+
+  function setRevealed(on) {
+    revealed = on;
+    diary.classList.toggle("revealed", on);
+    const b = $("revealBtn");
+    if (b) {
+      b.innerHTML = on ? "다시 덮기" : lockIco() + "그날의 속마음 보기";
+      b.onclick = on ? () => setRevealed(false) : () => askReveal();
+    }
+    $("diarySub").textContent = on ? "칠 아래 보관해둔 원래 글이야" : "검게 지우고 좋은 말로 덮었어";
+  }
+
+  // ---------- 할 일 ----------
+  const checkSvg = '<svg viewBox="0 0 22 22"><path d="M4 11.5 L9 16.5 L19 3.5"/></svg>';
+  const xSvg = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3 L13 13 M13 3 L3 13"/></svg>';
+  function renderTodos() {
+    const isToday = cur === todayKey();
+    const prevKey = shift(cur, -1);
+    const prev = peek(prevKey);
+    const todayItems = prev ? prev.todos : [];
+    const sec = $("todaySec"), ul = $("todayList");
+    $("todayTitle").textContent = isToday ? "오늘 할 일" : "이날 할 일";
+    $("todaySub").textContent = isToday ? "어제의 내가 적어둔 것" : "전날 적어둔 것";
+    $("tomTitle").textContent = isToday ? "내일 할 일" : "다음 날 할 일";
+    $("addInput").placeholder = isToday ? "내일 할 일 적기" : "다음 날 할 일 적기";
+    sec.hidden = !todayItems.length;
+    ul.innerHTML = "";
+    todayItems.forEach((t, i) => {
+      const li = document.createElement("li");
+      li.className = t.done ? "done" : "";
+      li.innerHTML = `<button class="box" role="checkbox" aria-checked="${!!t.done}" aria-label="완료 표시">${checkSvg}</button><span class="txt"></span>`;
+      li.querySelector(".txt").textContent = t.text;
+      li.querySelector(".box").onclick = () => {
+        t.done = !t.done; save();
+        li.className = t.done ? "done" : "";
+        li.querySelector(".box").setAttribute("aria-checked", t.done);
+        if (t.done && todayItems.every((x) => x.done)) toast("오늘 할 일 다 했다!");
+      };
+      ul.appendChild(li);
+    });
+
+    const tl = $("tomList");
+    tl.innerHTML = "";
+    const mine = peek(cur) ? peek(cur).todos : [];
+    mine.forEach((t, i) => {
+      const li = document.createElement("li");
+      li.innerHTML = `<span class="dash">–</span><span class="txt"></span><button class="del" aria-label="지우기">${xSvg}</button>`;
+      li.querySelector(".txt").textContent = t.text;
+      li.querySelector(".del").onclick = () => { day(cur).todos.splice(i, 1); save(); renderTodos(); };
+      tl.appendChild(li);
+    });
+  }
+  $("addForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const inp = $("addInput"); const v = inp.value.trim();
+    if (!v) return;
+    day(cur).todos.push({ text: v, done: false });
+    inp.value = ""; save(); renderTodos();
+  });
+
+  // ---------- 입력 저장 ----------
+  negInput.addEventListener("input", () => {
+    day(cur).neg = negInput.value; save(); layout();
+    hint.textContent = negInput.value ? "다 썼으면 버튼을 눌러. 그다음엔 손가락으로 까맣게 지울 거야." : "아무도 안 봐. 마음껏 써도 돼.";
+  });
+  posInput.addEventListener("input", () => { day(cur).pos = posInput.value; save(); mirror(); layout(); });
+
+  // ---------- 날짜 이동 ----------
+  function go(k) {
+    if (k > todayKey()) return;
+    save(true);
+    cur = k; render(); window.scrollTo({ top: 0 });
+  }
+  $("prev").onclick = () => go(shift(cur, -1));
+  $("next").onclick = () => go(shift(cur, 1));
+  $("dateBtn").onclick = () => { if (cur !== todayKey()) go(todayKey()); };
+  let sx = 0, sy = 0, sOk = false;
+  $("paper").addEventListener("touchstart", (e) => {
+    const t = e.target;
+    sOk = !(t.closest("textarea, input, canvas, .keys") );
+    sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+  }, { passive: true });
+  $("paper").addEventListener("touchend", (e) => {
+    if (!sOk) return;
+    const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+    if (Math.abs(dx) > 70 && Math.abs(dy) < 45) go(shift(cur, dx > 0 ? -1 : 1));
+  }, { passive: true });
+  // 자정이 지나면 오늘로
+  let lastToday = todayKey();
+  setInterval(() => { const t = todayKey(); if (t !== lastToday) { const wasToday = cur === lastToday; lastToday = t; if (wasToday) go(t); else render(); } }, 30000);
+
+  // ---------- 모달 ----------
+  const root = $("modalRoot");
+  function modal(html, onMount) {
+    root.innerHTML = `<div class="scrim" id="scrim"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;
+    const scrim = $("scrim");
+    scrim.addEventListener("click", (e) => { if (e.target === scrim) close(); });
+    onMount && onMount(root.querySelector(".sheet"));
+  }
+  function close() { root.innerHTML = ""; }
+  function confirmSheet(title, text, okLabel, onOk, cancelLabel = "취소") {
+    modal(`<h3>${title}</h3><p>${text}</p><div class="row"><button class="btn" id="mNo">${cancelLabel}</button><button class="btn ink" id="mYes">${okLabel}</button></div>`, () => {
+      $("mNo").onclick = close; $("mYes").onclick = () => { close(); onOk(); };
+    });
+  }
+  let toastTimer;
+  function toast(msg) {
+    const t = $("toast"); t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), 2200);
+  }
+
+  // ---------- 비밀번호 ----------
+  async function hash(pin, salt) {
+    const s = salt + ":" + pin;
+    if (window.crypto && crypto.subtle) {
+      try {
+        const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+        return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+      } catch (e) {}
+    }
+    let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return "f" + (h >>> 0).toString(16);
+  }
+  function pinPad(title, sub, onDone, opts = {}) {
+    let val = "";
+    modal(`<h3 style="text-align:center">${title}</h3><p style="text-align:center">${sub}</p>
+      <div class="pin-dots" id="dots"><i></i><i></i><i></i><i></i></div>
+      <div class="pin-msg" id="pinMsg"></div>
+      <div class="keys" id="keys">
+        ${[1,2,3,4,5,6,7,8,9].map((n) => `<button data-k="${n}">${n}</button>`).join("")}
+        <button class="blank" data-k="x" aria-label="닫기" style="font-size:17px;font-weight:400">닫기</button>
+        <button data-k="0">0</button>
+        <button class="blank" data-k="b" aria-label="지우기" style="font-size:22px">⌫</button>
+      </div>
+      ${opts.forgot ? '<div style="text-align:center;margin-top:10px"><button class="link" id="forgot">비밀번호를 잊었어요</button></div>' : ""}`, () => {
+      const dots = $("dots").children;
+      const paint = () => Array.from(dots).forEach((d, i) => d.classList.toggle("on", i < val.length));
+      $("keys").onclick = async (e) => {
+        const k = e.target.closest("button")?.dataset.k; if (!k) return;
+        if (k === "x") return close();
+        if (k === "b") { val = val.slice(0, -1); paint(); return; }
+        if (val.length >= 4) return;
+        val += k; paint();
+        if (val.length === 4) {
+          const ok = await onDone(val);
+          if (ok === false) {
+            $("pinMsg").textContent = opts.wrongMsg || "비밀번호가 달라요";
+            $("dots").classList.remove("shake"); void $("dots").offsetWidth; $("dots").classList.add("shake");
+            val = ""; setTimeout(paint, 150);
+          }
+        }
+      };
+      if (opts.forgot) $("forgot").onclick = () => confirmSheet("비밀번호를 지울까요?",
+        "비밀번호만 없어지고 일기는 그대로 남아요. 지운 뒤에 메뉴에서 새로 만들 수 있어요.", "비밀번호 지우기",
+        () => { db.pin = null; save(true); toast("비밀번호를 지웠어요"); });
+    });
+  }
+  function setPin(after) {
+    pinPad("새 비밀번호", "숫자 4자리를 정해줘", (a) => {
+      pinPad("한 번 더", "확인을 위해 다시 눌러줘", async (b) => {
+        if (a !== b) return false;
+        const salt = Math.random().toString(36).slice(2);
+        db.pin = { salt, hash: await hash(b, salt) }; db.pinAsked = true; save(true);
+        close(); toast("비밀번호를 걸었어요"); after && after();
+        return true;
+      }, { wrongMsg: "처음이랑 달라요. 다시 눌러줘" });
+      return true;
+    });
+  }
+  function verifyPin(after) {
+    pinPad("비밀번호", "속마음을 보려면 비밀번호를 눌러줘", async (v) => {
+      if ((await hash(v, db.pin.salt)) !== db.pin.hash) return false;
+      close(); after(); return true;
+    }, { forgot: true });
+  }
+  function askReveal() {
+    if (db.pin) return verifyPin(() => setRevealed(true));
+    if (!db.pinAsked) {
+      return modal(`<h3>비밀번호를 걸어둘까요?</h3><p>속마음을 열어볼 때마다 4자리 비밀번호를 묻게 돼요. 누가 폰을 잠깐 봐도 바로 보이지 않아요.</p>
+        <div class="row"><button class="btn" id="mSkip">그냥 볼래</button><button class="btn ink" id="mSet">비밀번호 만들기</button></div>`, () => {
+        $("mSkip").onclick = () => { db.pinAsked = true; save(true); close(); setRevealed(true); };
+        $("mSet").onclick = () => setPin(() => setRevealed(true));
+      });
+    }
+    setRevealed(true);
+  }
+
+  // ---------- 메뉴 / 백업 ----------
+  $("menuBtn").onclick = () => {
+    const count = Object.values(db.days).filter((d) => d.neg || d.pos || d.todos.length).length;
+    modal(`<h3>수첩 설정</h3><p>지금까지 ${count}일 동안 썼어요.</p>
+      <div class="menu-list">
+        ${db.pin
+          ? '<button id="mChange">비밀번호 바꾸기</button><button id="mOff">비밀번호 끄기</button>'
+          : '<button id="mOn">비밀번호 걸기<small>속마음을 열 때 4자리 숫자를 물어봐요</small></button>'}
+        <button id="mExport">백업 파일로 내보내기<small>폰을 바꾸거나 앱을 지우기 전에 꼭 해두세요</small></button>
+        <button id="mImport">백업 파일 불러오기</button>
+      </div>
+      <div class="row" style="margin-top:10px"><button class="btn" id="mClose">닫기</button></div>`, () => {
+      $("mClose").onclick = close;
+      if (db.pin) {
+        $("mChange").onclick = () => verifyPin(() => setPin());
+        $("mOff").onclick = () => verifyPin(() => { db.pin = null; save(true); toast("비밀번호를 껐어요"); });
+      } else $("mOn").onclick = () => setPin();
+      $("mExport").onclick = () => { close(); exportBackup(); };
+      $("mImport").onclick = () => { close(); $("importFile").click(); };
+    });
+  };
+  async function exportBackup() {
+    save(true);
+    const data = JSON.stringify({ app: "sokmaeum-sucheop", version: 1, exportedAt: new Date().toISOString(), days: db.days }, null, 1);
+    const name = `속마음수첩-백업-${todayKey()}.json`;
+    const file = new File([data], name, { type: "application/json" });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: "속마음 수첩 백업" });
+        return;
+      }
+    } catch (e) { if (e && e.name === "AbortError") return; }
+    try {
+      const url = URL.createObjectURL(file);
+      const a = document.createElement("a"); a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      toast("백업 파일을 만들었어요");
+    } catch (e) { toast("여기서는 파일을 내보낼 수 없어요"); }
+  }
+  $("importFile").addEventListener("change", async (e) => {
+    const f = e.target.files[0]; e.target.value = "";
+    if (!f) return;
+    let obj;
+    try { obj = JSON.parse(await f.text()); } catch (err) { return toast("백업 파일을 읽지 못했어요"); }
+    if (!obj || !obj.days) return toast("속마음 수첩 백업 파일이 아니에요");
+    const n = Object.keys(obj.days).length;
+    confirmSheet("백업을 불러올까요?", `${n}일치 일기가 들어 있어요. 지금 수첩에 합쳐지고, 같은 날짜는 백업 내용으로 바뀌어요.`, "불러오기", () => {
+      Object.assign(db.days, obj.days); save(true); render(); toast(`${n}일치를 불러왔어요`);
+    });
+  });
+
+  // ---------- 시작 ----------
+  window.addEventListener("resize", () => layout());
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { layout(); updateCoverage(); });
+  render();
+
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost") && !/claude|claudeusercontent/.test(location.hostname)) {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
